@@ -58,32 +58,43 @@ def main_menu():
 
 def register():
     os.system('cls' if os.name == 'nt' else 'clear')
-    filename = "users.csv"
-
-    if not os.path.isfile(filename) or os.path.getsize(filename) == 0:
-        users_df = pd.DataFrame(columns=["user_id", "nama", "username", "password", "nomor_hp", "role"])
-    else:
-        users_df = pd.read_csv(filename)
-
-    user_id = 1 if users_df.empty else users_df["user_id"].max() + 1
+    conn = psycopg2.connect(
+        dbname="qurban_el_gonam",
+        user="postgres",
+        password="elgonamku",
+        host="localhost",
+        port="5432"
+    )
+    cur = conn.cursor()
 
     nama = input("Masukkan Nama: ")
     username = input("Masukkan username: ")
     password = input("Masukkan password: ")
     nomor_hp = input("Masukkan Nomor HP: ")
     alamat = input("Masukkan Alamat: ")
-    role = "user"
+    role = "pengguna"
+
+    # Enkripsi password
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+    # Cek apakah username sudah digunakan
+    cur.execute('SELECT username FROM "user" WHERE username = %s', (username,))
+    if cur.fetchone():
+        print("Username sudah digunakan, silakan pilih username lain.")
+        cur.close()
+        conn.close()
+        return
+
+    # Simpan ke database
+    cur.execute("""
+        INSERT INTO "user" (nama, nomor_telepon, username, password, alamat, role)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (nama, nomor_hp, username, password_hash, alamat, role))
     
-    password = hashlib.sha256(password.encode()).hexdigest()
+    conn.commit()
+    cur.close()
+    conn.close()
 
-    # Buat DataFrame dari data baru
-    new_user_df = pd.DataFrame([{"user_id": user_id, "username": username, "password": password, "role": role, "nama": nama, "nomor_hp": nomor_hp, "alamat": alamat}])
-
-    # Tambahkan baris baru ke DataFrame lama dengan concat
-    users_df = pd.concat([users_df, new_user_df], ignore_index=True)
-
-    # Simpan ke file CSV
-    users_df.to_csv(filename, index=False)
     print("Registrasi berhasil!")
     main_menu()
 
