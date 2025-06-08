@@ -1,7 +1,6 @@
 import csv
 import hashlib
 import psycopg2
-import pandas as pd
 import os
 
 def postgresql_connect():
@@ -58,14 +57,8 @@ def main_menu():
 
 def register():
     os.system('cls' if os.name == 'nt' else 'clear')
-    conn = psycopg2.connect(
-        dbname="qurban_el_gonam",
-        user="postgres",
-        password="elgonamku",
-        host="localhost",
-        port="5432"
-    )
-    cur = conn.cursor()
+    
+    conn, cur = postgresql_connect()
 
     nama = input("Masukkan Nama: ")
     username = input("Masukkan username: ")
@@ -74,7 +67,6 @@ def register():
     alamat = input("Masukkan Alamat: ")
     role = "pengguna"
 
-    # Enkripsi password
     password_hash = hashlib.sha256(password.encode()).hexdigest()
 
     # Cek apakah username sudah digunakan
@@ -99,7 +91,7 @@ def register():
     main_menu()
 
 def login():
-    os.system ('cls')
+    os.system('cls' if os.name == 'nt' else 'clear')
     print("=== Login ===")
     username = input("Masukkan Username: ").strip()
     password = input("Masukkan Password: ").strip()
@@ -107,27 +99,33 @@ def login():
     password_hash = hashlib.sha256(password.encode()).hexdigest()
 
     try:
-        with open("users.csv", mode="r") as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if row[2] == username and row[3] == password_hash:
-                    print(f"Login berhasil! Selamat datang, {row[1]}")
-                    show_menu(role=row[5], user_id=row[0], nama=row[1])
-                    os.system ('cls')
-                    return
-    except FileNotFoundError:
-        print("Belum ada data pengguna. Silakan registrasi.")
-    except Exception as e:
-        print(f"Terjadi kesalahan: {e}")
+        conn, cur = postgresql_connect()
+        # Cek apakah username dan password cocok
+        cur.execute('''
+            SELECT user_id, nama, role FROM "user"
+            WHERE username = %s AND password = %s
+        ''', (username, password_hash))
 
-    print("Email atau password salah. Coba lagi.")
-    os.system ('cls')
-    main_menu()
+        result = cur.fetchone()
+        if result:
+            user_id, nama, role = result
+            print(f"Login berhasil! Selamat datang, {nama}")
+            show_menu(role=role, user_id=user_id, nama=nama)
+        else:
+            print("Username atau password salah. Coba lagi.")
+            main_menu()
+
+        cur.close()
+        conn.close()
+
+    except psycopg2.Error as e:
+        print(f"Terjadi kesalahan saat mengakses database: {e}")
+        main_menu()
 
 def show_menu(role, user_id, nama):
     os.system('cls' if os.name == 'nt' else 'clear')
     print("\n=== Menu Utama ===")
-    if role == "user":
+    if role == "pengguna":
         print("[1] Daftar Hewan")
         print("[2] Lihat Tabungan")
         print("[3] Setor Tabungan")
